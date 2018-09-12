@@ -1,0 +1,3 @@
+function im=flow(name)
+im=uint16(rgb2gray(imread(name)));
+m=abs(diff(im));

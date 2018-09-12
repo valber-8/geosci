@@ -1,0 +1,131 @@
+#### INPUT #####
+
+# read one-dimentional signal from file
+function x = wRead(name)
+	x = load(name);
+endfunction
+
+# read image recorded in format "x y z"
+function pic=wLoadpic(name)
+	f = fopen(name,"r");
+	v = fscanf(f,"%d %d %d\n",Inf);
+	for i=1:3:length(v)
+		pic(v(i),v(i+1)) = v(i+2);
+	end
+	fclose(f);
+endfunction
+
+#### PROCESSING #####
+
+# generate the Haar wavelet in time domain
+function h = wHaar(a)
+	for i=1:1:a/2
+		h(i)=1;
+	end
+	for i=i+1:1:a
+		h(i)=-1;
+	end
+endfunction
+
+# generate the MHAT wavelet in time domain
+function w = wMHAT(a)
+	t = -5;
+	dt = 10/a;
+	for i=1:1:a
+		w(i) = (1-t*t)*exp(-(t*t)/2);
+		t = t+dt;
+	end
+	plot(w);
+endfunction
+
+# countinuous wavelet transform on fixed scale
+function x1 = wCWT_fixedscale(x,w)
+	l = length(x)
+	a = length(w)
+	if a>l
+		printf("wCWT_fixedscale: lengths not match\n");
+	endif
+	k=1;
+	for i=1:a:l-a
+		x1(k)=0;
+		for j=1:1:a
+			x1(k) = x1(k)+x(i+j-1)*w(j);
+		end
+		x1(k) = abs(x1(k));
+		k=k+1;
+	end
+endfunction
+
+##### OUTPUT #####
+
+function wWrite(name,x)
+	f = fopen((name),"w");
+	fprintf(f,"%f\n",x);
+	fclose(f);
+endfunction
+
+#####  test scenarios ######
+
+# haar
+function sc1(name,a)
+	x = wRead(name);
+	h = wHaar(a);
+	x1 = wCWT_fixedscale(x,h);
+	plot(x1);
+endfunction
+
+# MHAT
+function sc2(name,a)
+	x = wRead(name);
+	x = conv(x,hanning(3));
+	h = wMHAT(a);
+	x1 = wCWT_fixedscale(x,h);
+	plot(x1);
+endfunction
+
+# peacks in absolute values of something
+function p = myPeacks(x,threshold)
+	m = max(x);
+	thr = m*threshold/100;
+	up = 0;
+	mx=1;
+	for i=1:1:length(x)
+		p(i)=0;
+		if (up==0)&&(x(i)>=thr)
+				up = 1;
+				mx = i;
+		endif
+		if (up==1)&&(x(i)<thr)
+			up = 0;
+			p(mx)=1;
+		endif
+		if (up==1)&&(x(i)>x(mx))
+				mx=i;
+		endif
+	end
+endfunction
+
+# hypothesis 1
+# now I got the best result with band = 30, threshold = 26
+function hyp1(name, band, threshold)
+	im_in = uint8(imread(name));
+	[h,w] = size(im_in);
+	im_out = zeros(h,w);
+	column=1;
+	for i=1:band:w-band
+		b = im_in(:,i:i+band);
+		for j=1:1:h
+			x(j) = (sum(b(j,:)))/band;
+		end
+		x = abs(diff(x));
+		x = conv(x,hanning(30));
+		x = x(1:h);
+		p = myPeacks(x,threshold);
+		p = p.*255;
+		for j=1:1:band
+			im_out(:,column+j-1)=p';
+		end
+		column = i+band;
+	end
+	imwrite (im_out,strcat(name,".b",int2str(band),".th",int2str(threshold),".out.jpg"),'jpg');
+endfunction
